@@ -1,5 +1,4 @@
 import Link from 'next/link';
-import { useRouter } from 'next/router';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 
 import styles from '../styles/Home.module.css';
@@ -11,21 +10,9 @@ interface AppHeaderProps {
 }
 
 export function AppHeader({ active }: AppHeaderProps) {
-  const router = useRouter();
-
   return (
     <header className={styles.header}>
       <div className={styles.headerLeft}>
-        <button
-          type="button"
-          className={styles.menuButton}
-          aria-label="Open main menu"
-        >
-          <span />
-          <span />
-          <span />
-        </button>
-
         <div className={styles.brand}>
           <span className={styles.brandMark} />
           <div>

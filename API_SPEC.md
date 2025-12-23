@@ -146,6 +146,112 @@ const data = await res.json(); // { cid, url }
 
 ---
 
+## 4.2 图片资产管理接口（用于「我的图片」页面）
+
+上传图片到 IPFS 之后，前端通常会调用一个接口把图片信息存到数据库，
+用于「我的图片」页面展示和后续选择上架/下架。
+
+图片资产记录模型（NftAsset）：
+
+```json
+{
+  "id": 1,
+  "name": "Cool NFT #1",
+  "owner": "0xOWNER_ADDRESS",
+  "cid": "QmXXXXXXXX...",
+  "url": "https://gateway.pinata.cloud/ipfs/QmXXXXXXXX...",
+  "createdAt": "2025-12-23 18:00:00",
+  "updatedAt": "2025-12-23 18:00:00"
+}
+```
+
+### 4.2.1 创建图片资产记录
+
+**POST** `/api/assets`
+
+> 建议流程：先调 `/api/ipfs/upload` 拿到 `cid` 和 `url`，  
+> 再调本接口把图片信息登记到数据库。
+
+请求体：
+
+```json
+{
+  "name": "Cool NFT #1",
+  "owner": "0xOWNER_ADDRESS",
+  "cid": "QmXXXXXXXX...",
+  "url": "https://gateway.pinata.cloud/ipfs/QmXXXXXXXX..."
+}
+```
+
+字段说明：
+
+- `name`：图片/NFT 名称，用于展示和搜索。
+- `owner`：当前用户的钱包地址（谁上传的）。
+- `cid`：IPFS CID。
+- `url`：IPFS 网关访问地址。
+
+响应：
+
+```json
+{
+  "id": 1,
+  "name": "Cool NFT #1",
+  "owner": "0xOWNER_ADDRESS",
+  "cid": "QmXXXXXXXX...",
+  "url": "https://gateway.pinata.cloud/ipfs/QmXXXXXXXX...",
+  "createdAt": "2025-12-23 18:00:00",
+  "updatedAt": "2025-12-23 18:00:00"
+}
+```
+
+### 4.2.2 查询图片资产列表（我的图片页面）
+
+**GET** `/api/assets`
+
+查询参数：
+
+- `owner`（可选）：按拥有者地址过滤，只看自己的图片。  
+- `keyword`（可选）：按名称模糊搜索，例如 `Cool`。
+
+示例：
+
+```http
+GET /api/assets?owner=0xOWNER_ADDRESS&keyword=Cool
+```
+
+响应：
+
+```json
+[
+  {
+    "id": 1,
+    "name": "Cool NFT #1",
+    "owner": "0xOWNER_ADDRESS",
+    "cid": "QmXXXXXXXX...",
+    "url": "https://gateway.pinata.cloud/ipfs/QmXXXXXXXX..."
+  },
+  {
+    "id": 5,
+    "name": "Cool NFT #5",
+    "owner": "0xOWNER_ADDRESS",
+    "cid": "QmYYYYYYYY...",
+    "url": "https://gateway.pinata.cloud/ipfs/QmYYYYYYYY..."
+  }
+]
+```
+
+前端可以用这个接口渲染「我的图片」页面：  
+每条记录展示图片、名称，并提供「上架」「下架」按钮：
+
+- 「上架」：点击后弹出价格、数量等表单，然后调用订单相关接口（5.1/5.2）。  
+- 「下架」：点击后根据当前订单状态，调用 `/api/orders/{orderId}/cancel` 或管理端接口。
+
+### 4.2.3 查询单个图片资产详情
+
+**GET** `/api/assets/{id}`
+
+响应：单个 `NftAsset` 对象，结构同上。
+
 ## 5. 订单与链上交互 API
 
 ### 5.1 创建链下订单（仅数据库，不上链）

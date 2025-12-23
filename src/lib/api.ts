@@ -16,6 +16,7 @@ export interface Order {
   listingId?: number | null;
   seller: string;
   buyer?: string | null;
+  nftName?: string | null;
   nftAddress: string;
   tokenId: number;
   amount: number;
@@ -39,10 +40,36 @@ export interface UploadIpfsResponse {
 
 export interface CreateOrderPayload {
   seller: string;
+  name?: string;
   nftAddress: string;
   tokenId: number;
   amount: number;
   price: string | number;
+}
+
+export interface NftAsset {
+  id: number;
+  name: string;
+  owner: string;
+  cid: string;
+  url: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface CreateAssetPayload {
+  name: string;
+  owner: string;
+  cid: string;
+  url: string;
+}
+
+export interface MintErc721Response {
+  tokenId: string;
+}
+
+export interface MintErc1155Response {
+  txHash: string;
 }
 
 async function request<T>(
@@ -82,6 +109,39 @@ export async function uploadToIpfs(
   return request<UploadIpfsResponse>('/api/ipfs/upload', {
     method: 'POST',
     body: formData,
+  });
+}
+
+// 图片资产相关
+
+export async function createAsset(
+  payload: CreateAssetPayload,
+): Promise<NftAsset> {
+  return request<NftAsset>('/api/assets', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function listAssets(params?: {
+  owner?: string;
+  keyword?: string;
+}): Promise<NftAsset[]> {
+  const search = new URLSearchParams();
+  if (params?.owner) search.set('owner', params.owner);
+  if (params?.keyword) search.set('keyword', params.keyword);
+  const qs = search.toString();
+  return request<NftAsset[]>(`/api/assets${qs ? `?${qs}` : ''}`, {
+    method: 'GET',
+  });
+}
+
+export async function getAsset(id: number): Promise<NftAsset> {
+  return request<NftAsset>(`/api/assets/${id}`, {
+    method: 'GET',
   });
 }
 
@@ -178,5 +238,42 @@ export async function listOrders(
   const query = status ? `?status=${encodeURIComponent(status)}` : '';
   return request<Order[]>(`/api/orders${query}`, {
     method: 'GET',
+  });
+}
+
+export async function searchOrders(keyword: string): Promise<Order[]> {
+  const qs = `?keyword=${encodeURIComponent(keyword)}`;
+  return request<Order[]>(`/api/orders/search${qs}`, {
+    method: 'GET',
+  });
+}
+
+// 铸造接口：ERC721 / ERC1155
+
+export async function mintErc721(payload: {
+  to: string;
+  uri: string;
+}): Promise<MintErc721Response> {
+  return request<MintErc721Response>('/api/tokens/erc721/mint', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function mintErc1155(payload: {
+  to: string;
+  id: string;
+  amount: string;
+  uri: string;
+}): Promise<MintErc1155Response> {
+  return request<MintErc1155Response>('/api/tokens/erc1155/mint', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
   });
 }
