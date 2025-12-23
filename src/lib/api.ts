@@ -59,6 +59,7 @@ export interface NftAsset {
   owner: string;
   cid: string;
   url: string;
+  amount: number;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -68,6 +69,7 @@ export interface CreateAssetPayload {
   owner: string;
   cid: string;
   url: string;
+  amount: number;
 }
 
 export interface MintErc721Response {
