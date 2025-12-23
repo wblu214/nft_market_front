@@ -2,7 +2,6 @@ import type { NextPage } from 'next';
 import Head from 'next/head';
 import { useMemo, useState, FormEvent } from 'react';
 import { useAccount } from 'wagmi';
-import { parseEther } from 'viem';
 
 import styles from '../styles/Home.module.css';
 import type { NftAsset } from '../lib/api';
@@ -48,19 +47,11 @@ const NftListingPage: NextPage = () => {
       return;
     }
 
-    let priceInWei: string;
-    try {
-      priceInWei = parseEther(priceInput).toString();
-    } catch {
-      setFormError('价格格式不正确，请输入合法的 BNB 数量，例如 0.01。');
-      return;
-    }
-
     try {
       const order = await createListingMutation.mutateAsync({
         seller: address,
         cid: activeAsset.cid,
-        price: priceInWei,
+        price: priceInput,
       });
 
       setFormSuccess(`挂单成功，订单号 #${order.orderId}。`);
@@ -231,4 +222,3 @@ function shortText(value?: string | null) {
 }
 
 export default NftListingPage;
-

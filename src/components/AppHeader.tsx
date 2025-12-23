@@ -15,10 +15,6 @@ export function AppHeader({ active }: AppHeaderProps) {
       <div className={styles.headerLeft}>
         <div className={styles.brand}>
           <span className={styles.brandMark} />
-          <div>
-            <div className={styles.brandTitle}>Charity NFT</div>
-            <div className={styles.brandSubtitle}>BSC · Marketplace</div>
-          </div>
         </div>
 
         <nav className={styles.nav}>

@@ -2,7 +2,6 @@ import type { NextPage } from 'next';
 import Head from 'next/head';
 import { useMemo } from 'react';
 import { useAccount } from 'wagmi';
-import { formatEther } from 'viem';
 
 import styles from '../styles/Home.module.css';
 import type { Order, OrderStatus } from '../lib/api';
@@ -24,18 +23,11 @@ const MyOrdersPage: NextPage = () => {
   }, [orders, address]);
 
   const formatPrice = (price: string | number) => {
-    try {
-      const wei =
-        typeof price === 'string'
-          ? BigInt(price)
-          : BigInt(Math.trunc(price as number));
-      const bnb = Number(formatEther(wei));
-      return `${bnb.toLocaleString(undefined, {
-        maximumFractionDigits: 4,
-      })} BNB`;
-    } catch {
-      return `${price} wei`;
-    }
+    const n = typeof price === 'string' ? Number(price) : price;
+    if (Number.isNaN(n)) return String(price);
+    return `${n.toLocaleString(undefined, {
+      maximumFractionDigits: 6,
+    })} BNB`;
   };
 
   const renderStatusTag = (status: OrderStatus) => {
