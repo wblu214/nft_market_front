@@ -51,11 +51,11 @@ const CreateNftPage: NextPage = () => {
       <AppHeader active="create" />
 
       <main className={styles.main}>
-        <section className={styles.leftColumn}>
+        <section className={styles.fullWidthSection}>
           <div className={styles.sectionCard}>
             <div className={styles.sectionHeader}>
               <div>
-                <h2 className={styles.sectionTitle}>Create NFT asset</h2>
+                <h2 className={styles.sectionTitle}>Create NFT</h2>
                 <p className={styles.sectionSubtitle}>
                   上传图片到 IPFS，拿到 URL / CID 之后，你可以在任意 BSC
                   合约中完成真正的 NFT mint。
@@ -116,4 +116,3 @@ const CreateNftPage: NextPage = () => {
 };
 
 export default CreateNftPage;
-
