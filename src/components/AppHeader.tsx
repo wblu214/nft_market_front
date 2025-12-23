@@ -25,29 +25,26 @@ export function AppHeader({ active }: AppHeaderProps) {
           <Link href="/" className={styles.navLink}>
             <button
               type="button"
-              className={`${styles.navItem} ${
-                active === 'market' ? styles.navItemActive : ''
-              }`}
+              className={`${styles.navItem} ${active === 'market' ? styles.navItemActive : ''
+                }`}
             >
-              NFT sea
+              NFT Sea
             </button>
           </Link>
           <Link href="/create-nft" className={styles.navLink}>
             <button
               type="button"
-              className={`${styles.navItem} ${
-                active === 'create' ? styles.navItemActive : ''
-              }`}
+              className={`${styles.navItem} ${active === 'create' ? styles.navItemActive : ''
+                }`}
             >
-              create NFT
+              Create NFT
             </button>
           </Link>
           <Link href="/nft-listing" className={styles.navLink}>
             <button
               type="button"
-              className={`${styles.navItem} ${
-                active === 'myNft' ? styles.navItemActive : ''
-              }`}
+              className={`${styles.navItem} ${active === 'myNft' ? styles.navItemActive : ''
+                }`}
             >
               My NFT
             </button>
@@ -55,9 +52,8 @@ export function AppHeader({ active }: AppHeaderProps) {
           <Link href="/my-orders" className={styles.navLink}>
             <button
               type="button"
-              className={`${styles.navItem} ${
-                active === 'orders' ? styles.navItemActive : ''
-              }`}
+              className={`${styles.navItem} ${active === 'orders' ? styles.navItemActive : ''
+                }`}
             >
               Orders
             </button>

@@ -2,36 +2,31 @@ import type { NextPage } from 'next';
 import Head from 'next/head';
 import { useMemo, useState, FormEvent } from 'react';
 import { useAccount } from 'wagmi';
-import { parseEther, formatEther } from 'viem';
+import { parseEther } from 'viem';
 
 import styles from '../styles/Home.module.css';
-import type { Order, OrderStatus } from '../lib/api';
-import {
-  useCancelOrder,
-  useCreateListing,
-  useOrders,
-} from '../lib/queries';
+import type { NftAsset } from '../lib/api';
+import { useAssets, useCreateListing } from '../lib/queries';
 import { AppHeader } from '../components/AppHeader';
 
 const NftListingPage: NextPage = () => {
   const { address, isConnected } = useAccount();
+  const { data: assets, isLoading, error } = useAssets(address);
   const createListingMutation = useCreateListing();
-  const cancelMutation = useCancelOrder();
-  const { data: allOrders } = useOrders();
 
-  const myOrders = useMemo(() => {
-    if (!allOrders || !address) return [];
-    return allOrders.filter(
-      (o) => o.seller?.toLowerCase() === address.toLowerCase(),
-    );
-  }, [allOrders, address]);
+  const myAssets = useMemo(() => assets ?? [], [assets]);
 
-  const [nftAddressInput, setNftAddressInput] = useState('');
-  const [tokenIdInput, setTokenIdInput] = useState('');
-  const [amountInput, setAmountInput] = useState('1');
+  const [activeAsset, setActiveAsset] = useState<NftAsset | null>(null);
   const [priceInput, setPriceInput] = useState('0.01');
   const [formError, setFormError] = useState<string | null>(null);
   const [formSuccess, setFormSuccess] = useState<string | null>(null);
+
+  const handleOpenList = (asset: NftAsset) => {
+    setActiveAsset(asset);
+    setPriceInput('0.01');
+    setFormError(null);
+    setFormSuccess(null);
+  };
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -43,21 +38,13 @@ const NftListingPage: NextPage = () => {
       return;
     }
 
-    if (!nftAddressInput || !tokenIdInput || !amountInput || !priceInput) {
-      setFormError('请完整填写合约地址、Token ID、数量和价格。');
+    if (!activeAsset) {
+      setFormError('缺少要上架的 NFT 资产信息。');
       return;
     }
 
-    const tokenId = Number(tokenIdInput);
-    const amount = Number(amountInput);
-
-    if (Number.isNaN(tokenId) || tokenId < 0) {
-      setFormError('Token ID 需要是非负整数。');
-      return;
-    }
-
-    if (Number.isNaN(amount) || amount <= 0) {
-      setFormError('数量需要是大于 0 的整数。');
+    if (!priceInput) {
+      setFormError('请填写价格。');
       return;
     }
 
@@ -72,164 +59,34 @@ const NftListingPage: NextPage = () => {
     try {
       const order = await createListingMutation.mutateAsync({
         seller: address,
-        nftAddress: nftAddressInput,
-        tokenId,
-        amount,
+        cid: activeAsset.cid,
         price: priceInWei,
       });
 
       setFormSuccess(`挂单成功，订单号 #${order.orderId}。`);
-      setTokenIdInput('');
-      setAmountInput('1');
       setPriceInput('0.01');
+      setActiveAsset(null);
     } catch (err: any) {
       setFormError(err?.message || '创建订单失败，请稍后重试。');
     }
   };
 
-  const formatPrice = (price: string | number) => {
-    try {
-      const wei =
-        typeof price === 'string'
-          ? BigInt(price)
-          : BigInt(Math.trunc(price as number));
-      const bnb = Number(formatEther(wei));
-      return `${bnb.toLocaleString(undefined, {
-        maximumFractionDigits: 4,
-      })} BNB`;
-    } catch {
-      return `${price} wei`;
-    }
-  };
-
-  const renderStatusTag = (status: OrderStatus) => {
-    switch (status) {
-      case 'LISTED':
-        return <span className={styles.tagListed}>已上架</span>;
-      case 'LOCKED':
-        return <span className={styles.tagLocked}>已锁定</span>;
-      case 'SETTLING':
-        return <span className={styles.tagSettling}>结算中</span>;
-      case 'SUCCESS':
-        return <span className={styles.tagSuccess}>已成交</span>;
-      case 'CANCELED':
-        return <span className={styles.tagCanceled}>已下架</span>;
-      case 'FAILED':
-        return <span className={styles.tagFailed}>失败</span>;
-      default:
-        return <span className={styles.tagMuted}>{status}</span>;
-    }
-  };
-
-  const handleUnlist = (orderId: number) => {
-    cancelMutation.mutate(orderId);
-  };
-
-  const handleRelist = (order: Order) => {
-    if (!address) return;
-    createListingMutation.mutate({
-      seller: address,
-      nftAddress: order.nftAddress,
-      tokenId: order.tokenId,
-      amount: order.amount,
-      price: order.price,
-    });
-  };
-
   return (
     <div className={styles.page}>
       <Head>
-        <title>List NFT · Charity NFT</title>
+        <title>My NFTs · Charity NFT</title>
       </Head>
 
       <AppHeader active="myNft" />
 
       <main className={styles.main}>
         <section className={styles.fullWidthSection}>
-          <div className={styles.sectionCard}>
-            <div className={styles.sectionHeader}>
-              <div>
-                <h2 className={styles.sectionTitle}>List NFT on Marketplace</h2>
-                <p className={styles.sectionSubtitle}>
-                  使用已铸造好的 NFT（合约地址 + Token ID），在 BSC
-                  上架到后端托管的 Marketplace。
-                </p>
-              </div>
-            </div>
-
-            <form className={styles.form} onSubmit={handleSubmit}>
-              <div className={styles.formGroup}>
-                <label className={styles.label}>
-                  NFT 合约地址
-                  <input
-                    className={styles.input}
-                    placeholder="0x..."
-                    value={nftAddressInput}
-                    onChange={(e) => setNftAddressInput(e.target.value)}
-                  />
-                </label>
-              </div>
-
-              <div className={styles.formInline}>
-                <label className={styles.label}>
-                  Token ID
-                  <input
-                    className={styles.input}
-                    placeholder="例如 1"
-                    value={tokenIdInput}
-                    onChange={(e) => setTokenIdInput(e.target.value)}
-                  />
-                </label>
-
-                <label className={styles.label}>
-                  数量
-                  <input
-                    className={styles.input}
-                    placeholder="默认为 1"
-                    value={amountInput}
-                    onChange={(e) => setAmountInput(e.target.value)}
-                  />
-                </label>
-              </div>
-
-              <div className={styles.formGroup}>
-                <label className={styles.label}>
-                  挂单价格（BNB）
-                  <input
-                    className={styles.input}
-                    placeholder="例如 0.01"
-                    value={priceInput}
-                    onChange={(e) => setPriceInput(e.target.value)}
-                  />
-                </label>
-              </div>
-
-              {formError && (
-                <div className={styles.errorBox}>{formError}</div>
-              )}
-              {formSuccess && (
-                <div className={styles.successBox}>{formSuccess}</div>
-              )}
-
-              <button
-                type="submit"
-                className={styles.primaryButton}
-                disabled={createListingMutation.isPending}
-              >
-                {createListingMutation.isPending
-                  ? '创建挂单中…'
-                  : '一键上架到 Marketplace'}
-              </button>
-            </form>
-          </div>
-        </section>
-
-        <section className={styles.fullWidthSection}>
           <div className={styles.sectionHeader}>
             <div>
               <h2 className={styles.sectionTitle}>My NFTs</h2>
               <p className={styles.sectionSubtitle}>
-                你创建的 NFT 按卡片展示，可在这里直接上架 / 下架。
+                你已经铸造（或上传）的 NFT 资产列表，数据来自
+                <code className={styles.inlineCode}> /api/assets</code>。
               </p>
             </div>
           </div>
@@ -238,33 +95,44 @@ const NftListingPage: NextPage = () => {
             <div className={styles.placeholder}>请先连接钱包。</div>
           )}
 
-          {isConnected && myOrders.length === 0 && (
-            <div className={styles.placeholder}>
-              当前钱包地址还没有创建任何订单。
-            </div>
+          {isConnected && isLoading && (
+            <div className={styles.placeholder}>加载中…</div>
           )}
 
+          {isConnected && error && (
+            <div className={styles.errorBox}>加载失败，请稍后重试。</div>
+          )}
+
+          {isConnected &&
+            !isLoading &&
+            !error &&
+            myAssets.length === 0 && (
+              <div className={styles.placeholder}>
+                当前钱包地址还没有 NFT 资产。
+              </div>
+            )}
+
           <div className={styles.cardRow}>
-            {myOrders.map((order) => (
-              <article key={order.orderId} className={styles.marketCard}>
-                <div className={styles.marketCardImage} />
+            {myAssets.map((asset) => (
+              <article key={asset.id} className={styles.marketCard}>
+                <div className={styles.marketCardImage}>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={asset.url} alt={asset.name} />
+                </div>
                 <div className={styles.marketCardBody}>
                   <div className={styles.marketCardHeader}>
-                    <h3 className={styles.marketCardTitle}>
-                      Token {order.tokenId}
-                    </h3>
-                    {renderStatusTag(order.status)}
+                    <h3 className={styles.marketCardTitle}>{asset.name}</h3>
                   </div>
                   <div className={styles.marketCardMeta}>
-                    <span className={styles.marketCardLabel}>合约地址</span>
+                    <span className={styles.marketCardLabel}>Owner</span>
                     <span className={styles.marketCardOwner}>
-                      {shortAddress(order.nftAddress)}
+                      {shortAddress(asset.owner)}
                     </span>
                   </div>
                   <div className={styles.marketCardMeta}>
-                    <span className={styles.marketCardLabel}>Price</span>
-                    <span className={styles.marketCardPrice}>
-                      {formatPrice(order.price)}
+                    <span className={styles.marketCardLabel}>CID</span>
+                    <span className={styles.marketCardOwner}>
+                      {shortText(asset.cid)}
                     </span>
                   </div>
                 </div>
@@ -272,21 +140,15 @@ const NftListingPage: NextPage = () => {
                   <button
                     type="button"
                     className={styles.secondaryButton}
-                    disabled={
-                      order.status !== 'LISTED' || cancelMutation.isPending
-                    }
-                    onClick={() => handleUnlist(order.orderId)}
+                    disabled
                   >
                     下架
                   </button>
                   <button
                     type="button"
                     className={styles.primaryButton}
-                    disabled={
-                      order.status !== 'CANCELED' ||
-                      createListingMutation.isPending
-                    }
-                    onClick={() => handleRelist(order)}
+                    disabled={!isConnected}
+                    onClick={() => handleOpenList(asset)}
                   >
                     上架
                   </button>
@@ -295,15 +157,78 @@ const NftListingPage: NextPage = () => {
             ))}
           </div>
         </section>
+
+        {activeAsset && (
+          <div className={styles.modalBackdrop}>
+            <div className={styles.modalCard}>
+              <div className={styles.sectionHeader}>
+                <div>
+                  <h2 className={styles.sectionTitle}>List NFT on Marketplace</h2>
+                  <p className={styles.sectionSubtitle}>
+                    为 <strong>{activeAsset.name}</strong> 设置价格，使用其 CID
+                    在链上创建一个挂单。
+                  </p>
+                </div>
+              </div>
+
+              <form className={styles.form} onSubmit={handleSubmit}>
+                <div className={styles.formGroup}>
+                  <label className={styles.label}>
+                    挂单价格（BNB）
+                    <input
+                      className={styles.input}
+                      placeholder="例如 0.01"
+                      value={priceInput}
+                      onChange={(e) => setPriceInput(e.target.value)}
+                    />
+                  </label>
+                </div>
+
+                {formError && (
+                  <div className={styles.errorBox}>{formError}</div>
+                )}
+                {formSuccess && (
+                  <div className={styles.successBox}>{formSuccess}</div>
+                )}
+
+                <div className={styles.modalActions}>
+                  <button
+                    type="button"
+                    className={styles.secondaryButton}
+                    onClick={() => setActiveAsset(null)}
+                  >
+                    取消
+                  </button>
+                  <button
+                    type="submit"
+                    className={styles.primaryButton}
+                    disabled={createListingMutation.isPending}
+                  >
+                    {createListingMutation.isPending
+                      ? '创建挂单中…'
+                      : '确认上架'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
       </main>
     </div>
   );
 };
-
-export default NftListingPage;
 
 function shortAddress(value?: string | null) {
   if (!value) return '-';
   if (value.length <= 10) return value;
   return `${value.slice(0, 6)}…${value.slice(-4)}`;
 }
+
+function shortText(value?: string | null) {
+  if (!value) return '-';
+  if (value.length <= 12) return value;
+  return `${value.slice(0, 6)}…${value.slice(-4)}`;
+}
+
+export default NftListingPage;
+

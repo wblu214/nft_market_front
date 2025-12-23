@@ -47,6 +47,12 @@ export interface CreateOrderPayload {
   price: string | number;
 }
 
+export interface ListOnChainByCidPayload {
+  seller: string;
+  cid: string;
+  price: string | number;
+}
+
 export interface NftAsset {
   id: number;
   name: string;
@@ -161,6 +167,18 @@ export async function listOrderOnChain(
   payload: CreateOrderPayload,
 ): Promise<Order> {
   return request<Order>('/api/orders/list-on-chain', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function listOrderOnChainByCid(
+  payload: ListOnChainByCidPayload,
+): Promise<Order> {
+  return request<Order>('/api/orders/list-on-chain/by-cid', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

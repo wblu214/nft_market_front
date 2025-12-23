@@ -7,7 +7,7 @@ import {
   getAsset,
   getOrder,
   listAssets,
-  listOrderOnChain,
+  listOrderOnChainByCid,
   listOrders,
   lockOrder,
   mintErc1155,
@@ -82,7 +82,7 @@ export function useCreateListing() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: listOrderOnChain,
+    mutationFn: listOrderOnChainByCid,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ordersKeys.all });
     },
