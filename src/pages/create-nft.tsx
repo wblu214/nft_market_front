@@ -75,6 +75,7 @@ const CreateNftPage: NextPage = () => {
         owner: address,
         cid: ipfs.cid,
         url: ipfs.url,
+        amount: amountNum,
       });
 
       // 3. 根据数量自动选择 ERC721 / ERC1155 合约进行 mint
