@@ -3,7 +3,7 @@ import { ConnectButton } from '@rainbow-me/rainbowkit';
 
 import styles from '../styles/Home.module.css';
 
-type NavKey = 'find' | 'create' | 'collections' | 'friends';
+type NavKey = 'market' | 'create' | 'myNft' | 'orders';
 
 interface AppHeaderProps {
   active: NavKey;
@@ -26,10 +26,10 @@ export function AppHeader({ active }: AppHeaderProps) {
             <button
               type="button"
               className={`${styles.navItem} ${
-                active === 'find' ? styles.navItemActive : ''
+                active === 'market' ? styles.navItemActive : ''
               }`}
             >
-              Find a Cause
+              NFT sea
             </button>
           </Link>
           <Link href="/create-nft" className={styles.navLink}>
@@ -39,27 +39,27 @@ export function AppHeader({ active }: AppHeaderProps) {
                 active === 'create' ? styles.navItemActive : ''
               }`}
             >
-              Create NFT
+              create NFT
             </button>
           </Link>
           <Link href="/nft-listing" className={styles.navLink}>
             <button
               type="button"
               className={`${styles.navItem} ${
-                active === 'collections' ? styles.navItemActive : ''
+                active === 'myNft' ? styles.navItemActive : ''
               }`}
             >
-              See Collections
+              My NFT
             </button>
           </Link>
           <Link href="/my-orders" className={styles.navLink}>
             <button
               type="button"
               className={`${styles.navItem} ${
-                active === 'friends' ? styles.navItemActive : ''
+                active === 'orders' ? styles.navItemActive : ''
               }`}
             >
-              Make Friends
+              Orders
             </button>
           </Link>
         </nav>

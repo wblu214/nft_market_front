@@ -142,7 +142,7 @@ const NftListingPage: NextPage = () => {
         <title>List NFT · Charity NFT</title>
       </Head>
 
-      <AppHeader active="collections" />
+      <AppHeader active="myNft" />
 
       <main className={styles.main}>
         <section className={styles.fullWidthSection}>

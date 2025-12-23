@@ -67,7 +67,7 @@ const MyOrdersPage: NextPage = () => {
         <title>My Orders · Charity NFT</title>
       </Head>
 
-      <AppHeader active="friends" />
+      <AppHeader active="orders" />
 
       <main className={styles.main}>
         <section className={styles.leftColumn}>
@@ -159,4 +159,3 @@ function shortAddress(value?: string | null) {
 }
 
 export default MyOrdersPage;
-

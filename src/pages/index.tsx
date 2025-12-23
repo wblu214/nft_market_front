@@ -71,7 +71,7 @@ const Home: NextPage = () => {
         <link rel="icon" href="/favicon.ico" />
       </Head>
 
-      <AppHeader active="find" />
+      <AppHeader active="market" />
 
       <main className={styles.main}>
         <section className={styles.fullWidthSection}>
@@ -169,4 +169,3 @@ function shortAddress(value?: string | null) {
 }
 
 export default Home;
-
