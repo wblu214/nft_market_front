@@ -1,5 +1,6 @@
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:2025';
+// 默认走同源 /api，由 Next.js 在 next.config.js 里做反向代理到后端。
+// 如需直接访问独立后端域名，可通过 NEXT_PUBLIC_API_BASE_URL 覆盖。
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? '';
 
 export type OrderStatus =
   | 'INIT'
@@ -179,4 +180,3 @@ export async function listOrders(
     method: 'GET',
   });
 }
-
