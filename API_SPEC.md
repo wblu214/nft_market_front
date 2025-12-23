@@ -44,6 +44,7 @@
   "listingId": 1001,
   "seller": "0xSELLER",
   "buyer": "0xBUYER",
+  "nftName": "Cool NFT #1",
   "nftAddress": "0xNFT_CONTRACT",
   "tokenId": 1,
   "amount": 1,
@@ -62,6 +63,7 @@
 - `listingId`：链上 `NFTMarketplace` 合约中的 `listingId`（挂单 ID）
 - `seller`：卖家地址（链上地址）
 - `buyer`：买家地址（链上地址）
+- `nftName`：NFT 名称（用于展示和模糊搜索）
 - `nftAddress`：NFT 合约地址（ERC721 / ERC1155）
 - `tokenId`：NFT tokenId
 - `amount`：数量（ERC721 恒为 1，ERC1155 为出售数量）
@@ -157,6 +159,7 @@ const data = await res.json(); // { cid, url }
 ```json
 {
   "seller": "0xSELLER_ADDRESS",
+  "name": "Cool NFT #1",
   "nftAddress": "0xNFT_CONTRACT",
   "tokenId": 1,
   "amount": 1,
@@ -200,6 +203,7 @@ const data = await res.json(); // { cid, url }
 ```json
 {
   "seller": "0xSELLER_ADDRESS",
+  "name": "Cool NFT #1",
   "nftAddress": "0xNFT_CONTRACT",
   "tokenId": 1,
   "amount": 1,
@@ -216,6 +220,7 @@ const data = await res.json(); // { cid, url }
   "orderId": 1,
   "listingId": 1001,
   "seller": "0xSELLER_ADDRESS",
+  "nftName": "Cool NFT #1",
   "nftAddress": "0xNFT_CONTRACT",
   "tokenId": 1,
   "amount": 1,
@@ -415,6 +420,33 @@ GET /api/orders?status=LISTED
   { "orderId": 1, "status": "LISTED" },
   { "orderId": 2, "status": "LISTED" }
 ]
+
+---
+
+### 5.11 按 NFT 名称模糊搜索订单
+
+**GET** `/api/orders/search`
+
+#### 查询参数
+
+- `keyword`：搜索关键字，会在 `nftName` 上执行模糊匹配。
+
+#### 示例
+
+```http
+GET /api/orders/search?keyword=Cool
+```
+
+#### 响应
+
+- `200 OK`，返回所有 `nftName` 包含该关键字的订单列表：
+
+```json
+[
+  { "orderId": 1, "nftName": "Cool NFT #1", "status": "LISTED" },
+  { "orderId": 5, "nftName": "Super Cool Dragon", "status": "SUCCESS" }
+]
+```
 ```
 
 ---
@@ -428,3 +460,231 @@ GET /api/orders?status=LISTED
 3. 铸造完成后，前端知道 `nftAddress + tokenId`，调用 `/api/orders/list-on-chain` 上架。  
 4. 买家在前端看到订单，点击购买：调用 `/api/orders/{orderId}/buy-on-chain`。  
 5. 前端轮询 `/api/orders/{orderId}`，直到 `status === "SUCCESS"`，交易完成。
+
+---
+
+## 7. 铸造合约 API（ProjectNFT / Project1155）
+
+后端已经对接了两个开放 mint 的合约，方便前端完成「上传图片 → 铸造 → 授权 → 上架」的一条链路：
+
+- `ProjectNFT`：ERC721，单份 NFT（1-of-1），合约地址在 `blockchain.project-nft-contract-address`。  
+- `Project1155`：ERC1155，多份 NFT，同一个 `id` 可以有多份，合约地址在 `blockchain.project-1155-contract-address`。  
+
+前端**最常用**的只有三类操作：
+
+1. 使用 `POST /api/tokens/erc721/mint` 或 `POST /api/tokens/erc1155/mint` 完成铸造。  
+2. 使用 `POST /api/tokens/erc721/set-approval-for-all` 或 `POST /api/tokens/erc1155/set-approval-for-all` 授权 Marketplace。  
+3. 调用前文的订单接口 `/api/orders/list-on-chain`、`/api/orders/.../buy-on-chain` 完成挂单和购买。
+
+下面列出所有可用接口（用于前端或运维调试）。
+
+### 7.1 ProjectNFT（ERC721）相关接口
+
+路径前缀：`/api/tokens/erc721`
+
+#### 7.1.1 铸造 ERC721 NFT
+
+**POST** `/api/tokens/erc721/mint`
+
+请求体：
+
+```json
+{
+  "to": "0xRECEIVER_ADDRESS",
+  "uri": "https://... 或 ipfs://..."
+}
+```
+
+响应：
+
+```json
+{
+  "tokenId": "123"
+}
+```
+
+前端拿到 `tokenId` 后，就可以配合 `ProjectNFT` 合约地址一起作为 `nftAddress + tokenId` 传给订单接口。
+
+#### 7.1.2 基本信息查询
+
+- `GET /api/tokens/erc721/name` → `{"name":"ProjectNFT"}`  
+- `GET /api/tokens/erc721/symbol` → `{"symbol":"PNFT"}`  
+- `GET /api/tokens/erc721/next-token-id` → `{"nextTokenId":"X"}`  
+
+#### 7.1.3 持仓 & 元数据查询
+
+- `GET /api/tokens/erc721/balance-of?owner=0x...`  
+  - 响应：`{"balance":"N"}`
+
+- `GET /api/tokens/erc721/owner-of/{tokenId}`  
+  - 响应：`{"owner":"0x..."}`
+
+- `GET /api/tokens/erc721/token-uri/{tokenId}`  
+  - 响应：`{"uri":"https://... 或 ipfs://..."}`  
+
+#### 7.1.4 授权查询
+
+- `GET /api/tokens/erc721/get-approved/{tokenId}`  
+  - 响应：`{"approved":"0x..."}`
+
+- `GET /api/tokens/erc721/is-approved-for-all?owner=0x...&operator=0x...`  
+  - 响应：`{"approved":true/false}`
+
+- `GET /api/tokens/erc721/supports-interface?interfaceId=0x80ac58cd`  
+  - 响应：`{"supported":true/false}`（0x80ac58cd 是 ERC721 接口）
+
+#### 7.1.5 授权 & 转账（常用的是 setApprovalForAll）
+
+- **授权整个钱包的所有 NFT 给某个合约（推荐授权给 Marketplace）：**  
+
+  **POST** `/api/tokens/erc721/set-approval-for-all`
+
+  ```json
+  {
+    "operator": "0xMARKETPLACE_ADDRESS",
+    "approved": true
+  }
+  ```
+
+  响应：`{"txHash":"0x..."}`  
+
+- 单个 token 授权（一般用不到）：  
+
+  **POST** `/api/tokens/erc721/approve`
+
+  ```json
+  {
+    "to": "0xSPENDER",
+    "tokenId": 123,
+    "valueWei": "0"
+  }
+  ```
+
+  响应：`{"txHash":"0x..."}`  
+
+- 转账（一般用钱包完成，接口主要用于测试）：  
+
+  **POST** `/api/tokens/erc721/transfer-from`  
+  **POST** `/api/tokens/erc721/safe-transfer-from`  
+
+  请求体类似：
+
+  ```json
+  {
+    "from": "0xFROM",
+    "to": "0xTO",
+    "tokenId": 123,
+    "valueWei": "0",
+    "dataHex": "0x"
+  }
+  ```
+
+  响应均为：`{"txHash":"0x..."}`。
+
+### 7.2 Project1155（ERC1155）相关接口
+
+路径前缀：`/api/tokens/erc1155`
+
+#### 7.2.1 铸造 ERC1155 NFT
+
+**POST** `/api/tokens/erc1155/mint`
+
+请求体：
+
+```json
+{
+  "to": "0xRECEIVER_ADDRESS",
+  "id": "1",
+  "amount": "10",
+  "uri": "https://... 或 ipfs://..."
+}
+```
+
+响应：
+
+```json
+{
+  "txHash": "0x..."
+}
+```
+
+> 注意：同一个 `id` 可以多次 mint，多次 mint 的元数据 URI 使用 `newUri` 覆盖或首次设置。
+
+#### 7.2.2 持仓 & 元数据查询
+
+- `GET /api/tokens/erc1155/balance-of?account=0x...&id=1`  
+  - 响应：`{"balance":"10"}`
+
+- `POST /api/tokens/erc1155/balance-of-batch`  
+
+  ```json
+  {
+    "accounts": ["0xAAA","0xBBB"],
+    "ids": ["1","2"]
+  }
+  ```
+
+  响应：
+
+  ```json
+  {
+    "balances": ["10","0"]
+  }
+  ```
+
+- `GET /api/tokens/erc1155/uri/{id}` → `{"uri":"https://... 或 ipfs://..."}`  
+
+#### 7.2.3 授权
+
+- 查询授权：  
+  `GET /api/tokens/erc1155/is-approved-for-all?account=0x...&operator=0x...` → `{"approved":true/false}`
+
+- 设置授权（通常授权给 Marketplace）：  
+
+  **POST** `/api/tokens/erc1155/set-approval-for-all`
+
+  ```json
+  {
+    "operator": "0xMARKETPLACE_ADDRESS",
+    "approved": true
+  }
+  ```
+
+  响应：`{"txHash":"0x..."}`  
+
+- 接口支持检测接口类型：  
+  `GET /api/tokens/erc1155/supports-interface?interfaceId=0xd9b67a26` → 是否支持 ERC1155。
+
+#### 7.2.4 转账（用于测试）
+
+- 单个 id 转账：  
+
+  **POST** `/api/tokens/erc1155/safe-transfer-from`
+
+  ```json
+  {
+    "from": "0xFROM",
+    "to": "0xTO",
+    "id": "1",
+    "value": "5",
+    "dataHex": "0x"
+  }
+  ```
+
+  响应：`{"txHash":"0x..."}`  
+
+- 批量转账多个 id：  
+
+  **POST** `/api/tokens/erc1155/safe-batch-transfer-from`
+
+  ```json
+  {
+    "from": "0xFROM",
+    "to": "0xTO",
+    "ids": ["1","2"],
+    "values": ["5","3"],
+    "dataHex": "0x"
+  }
+  ```
+
+  响应：`{"txHash":"0x..."}`。

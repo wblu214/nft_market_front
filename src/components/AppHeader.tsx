@@ -100,17 +100,10 @@ export function AppHeader({ active }: AppHeaderProps) {
       </div>
 
       <div className={styles.headerRight}>
-        <button type="button" className={styles.joinButton}>
-          Join Us
-        </button>
-        <button type="button" className={styles.donateButton}>
-          Donate
-        </button>
         <div className={styles.walletButton}>
-          <ConnectButton />
+          <ConnectButton chainStatus="icon" showBalance={false} />
         </div>
       </div>
     </header>
   );
 }
-
