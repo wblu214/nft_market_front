@@ -26,8 +26,17 @@ const NftListingPage: NextPage = () => {
   const handleOpenList = (asset: NftAsset) => {
     setActiveAsset(asset);
     setPriceInput('0.01');
-    setNftAddressInput('');
-    setTokenIdInput('');
+
+    // 如果後端已回填 nft_address / token_id，則自動帶出，否則留空讓用戶手動填寫。
+    const initialAddress =
+      asset.nftAddress && asset.nftAddress.trim().length > 0
+        ? asset.nftAddress
+        : '';
+    const initialTokenId =
+      asset.tokenId && asset.tokenId !== 0 ? String(asset.tokenId) : '';
+
+    setNftAddressInput(initialAddress);
+    setTokenIdInput(initialTokenId);
     setFormError(null);
     setFormSuccess(null);
   };
@@ -74,7 +83,7 @@ const NftListingPage: NextPage = () => {
       await listMutation.mutate({
         nftAddress: nftAddressInput.trim(),
         tokenId,
-        amount: 1n,
+        amount: 1,
         priceInBnb: priceInput,
       });
 
@@ -101,7 +110,7 @@ const NftListingPage: NextPage = () => {
               <h2 className={styles.sectionTitle}>My NFTs</h2>
               <p className={styles.sectionSubtitle}>
                 你已经铸造（或上传）的 NFT 资产列表，数据来自
-                <code className={styles.inlineCode}> /api/assets</code>。
+                <code className={styles.inlineCode}> /api/v1/assets</code>。
               </p>
             </div>
           </div>
@@ -197,6 +206,9 @@ const NftListingPage: NextPage = () => {
                       onChange={(e) => setNftAddressInput(e.target.value)}
                     />
                   </label>
+                  <p className={styles.helperText}>
+                    如果后端已在 nft_assets 中回填合约地址，这里会自动填入；否则请手动填写。
+                  </p>
                 </div>
 
                 <div className={styles.formGroup}>
@@ -209,6 +221,9 @@ const NftListingPage: NextPage = () => {
                       onChange={(e) => setTokenIdInput(e.target.value)}
                     />
                   </label>
+                  <p className={styles.helperText}>
+                    如果后端已回填 token_id，这里会自动填入；否则请根据链上实际的 tokenId 填写。
+                  </p>
                 </div>
 
                 <div className={styles.formGroup}>

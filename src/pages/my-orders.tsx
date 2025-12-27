@@ -106,7 +106,12 @@ const MyOrdersPage: NextPage = () => {
                 <article key={order.orderId} className={styles.orderRow}>
                   <div className={styles.orderRowMain}>
                     <div className={styles.orderRowTitle}>
-                      <span>订单 #{order.orderId}</span>
+                      <span>
+                        订单 #{order.orderId}
+                        {order.listingId != null && (
+                          <>（Listing #{order.listingId}）</>
+                        )}
+                      </span>
                       {renderStatusTag(order.status)}
                     </div>
                     <div className={styles.orderRowMeta}>
@@ -120,6 +125,22 @@ const MyOrdersPage: NextPage = () => {
                         address?.toLowerCase()
                           ? '卖家'
                           : '买家'}
+                      </span>
+                      <span>
+                        状态说明:{' '}
+                        {order.status === 'LISTED'
+                          ? '已上架，可被购买'
+                          : order.status === 'SUCCESS'
+                          ? '交易成功，订单已完成'
+                          : order.status === 'CANCELED'
+                          ? '挂单已由卖家取消'
+                          : order.status === 'SETTLING'
+                          ? '链上结算中，等待确认'
+                          : order.status === 'LOCKED'
+                          ? '已锁定，正在处理交易'
+                          : order.status === 'FAILED'
+                          ? '交易失败或结算异常'
+                          : order.status}
                       </span>
                     </div>
                   </div>
