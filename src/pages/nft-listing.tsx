@@ -5,24 +5,29 @@ import { useAccount } from 'wagmi';
 
 import styles from '../styles/Home.module.css';
 import type { NftAsset } from '../lib/api';
-import { useAssets, useCreateListing } from '../lib/queries';
+import { useAssets } from '../lib/queries';
+import { useListOnMarketplace } from '../lib/web3';
 import { AppHeader } from '../components/AppHeader';
 
 const NftListingPage: NextPage = () => {
   const { address, isConnected } = useAccount();
   const { data: assets, isLoading, error } = useAssets(address);
-  const createListingMutation = useCreateListing();
+  const listMutation = useListOnMarketplace();
 
   const myAssets = useMemo(() => assets ?? [], [assets]);
 
   const [activeAsset, setActiveAsset] = useState<NftAsset | null>(null);
   const [priceInput, setPriceInput] = useState('0.01');
+  const [nftAddressInput, setNftAddressInput] = useState('');
+  const [tokenIdInput, setTokenIdInput] = useState('');
   const [formError, setFormError] = useState<string | null>(null);
   const [formSuccess, setFormSuccess] = useState<string | null>(null);
 
   const handleOpenList = (asset: NftAsset) => {
     setActiveAsset(asset);
     setPriceInput('0.01');
+    setNftAddressInput('');
+    setTokenIdInput('');
     setFormError(null);
     setFormSuccess(null);
   };
@@ -42,19 +47,38 @@ const NftListingPage: NextPage = () => {
       return;
     }
 
+    if (!nftAddressInput.trim()) {
+      setFormError('请填写 NFT 合约地址。');
+      return;
+    }
+
+    if (!tokenIdInput.trim()) {
+      setFormError('请填写 Token ID。');
+      return;
+    }
+
     if (!priceInput) {
       setFormError('请填写价格。');
       return;
     }
 
     try {
-      const order = await createListingMutation.mutateAsync({
-        seller: address,
-        cid: activeAsset.cid,
-        price: priceInput,
+      let tokenId: bigint;
+      try {
+        tokenId = BigInt(tokenIdInput.trim());
+      } catch {
+        setFormError('Token ID 需要是整数。');
+        return;
+      }
+
+      await listMutation.mutate({
+        nftAddress: nftAddressInput.trim(),
+        tokenId,
+        amount: 1n,
+        priceInBnb: priceInput,
       });
 
-      setFormSuccess(`挂单成功，订单号 #${order.orderId}。`);
+      setFormSuccess('挂单交易已提交，请等待链上确认和后端同步订单。');
       setPriceInput('0.01');
       setActiveAsset(null);
     } catch (err: any) {
@@ -151,18 +175,42 @@ const NftListingPage: NextPage = () => {
 
         {activeAsset && (
           <div className={styles.modalBackdrop}>
-            <div className={styles.modalCard}>
+              <div className={styles.modalCard}>
               <div className={styles.sectionHeader}>
                 <div>
                   <h2 className={styles.sectionTitle}>List NFT on Marketplace</h2>
                   <p className={styles.sectionSubtitle}>
-                    为 <strong>{activeAsset.name}</strong> 设置价格，使用其 CID
-                    在链上创建一个挂单。
+                    为 <strong>{activeAsset.name}</strong> 设置价格，并填写 NFT
+                    合约地址和 Token ID，在链上创建一个挂单。
                   </p>
                 </div>
               </div>
 
               <form className={styles.form} onSubmit={handleSubmit}>
+                <div className={styles.formGroup}>
+                  <label className={styles.label}>
+                    NFT 合约地址
+                    <input
+                      className={styles.input}
+                      placeholder="例如 0xaa6a15D595bA8F69680465FBE61d9d886057Cb1E"
+                      value={nftAddressInput}
+                      onChange={(e) => setNftAddressInput(e.target.value)}
+                    />
+                  </label>
+                </div>
+
+                <div className={styles.formGroup}>
+                  <label className={styles.label}>
+                    Token ID
+                    <input
+                      className={styles.input}
+                      placeholder="链上 NFT 的 tokenId / id"
+                      value={tokenIdInput}
+                      onChange={(e) => setTokenIdInput(e.target.value)}
+                    />
+                  </label>
+                </div>
+
                 <div className={styles.formGroup}>
                   <label className={styles.label}>
                     挂单价格（BNB）
@@ -193,9 +241,9 @@ const NftListingPage: NextPage = () => {
                   <button
                     type="submit"
                     className={styles.primaryButton}
-                    disabled={createListingMutation.isPending}
+                    disabled={listMutation.isPending}
                   >
-                    {createListingMutation.isPending
+                    {listMutation.isPending
                       ? '创建挂单中…'
                       : '确认上架'}
                   </button>

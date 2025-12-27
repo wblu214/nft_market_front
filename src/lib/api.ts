@@ -1,5 +1,7 @@
-// 默认走同源 /api，由 Next.js 在 next.config.js 里做反向代理到后端。
-// 如需直接访问独立后端域名，可通过 NEXT_PUBLIC_API_BASE_URL 覆盖。
+// HTTP client for Gin backend (assets / orders / health).
+// 所有鏈上寫操作（mint / list / buy / cancel）都通過 wagmi 在 web3.ts 中完成，
+// 這裡只負責調用 Go Gin 提供的 REST API。
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? '';
 
 export type OrderStatus =
@@ -13,44 +15,20 @@ export type OrderStatus =
 
 export interface Order {
   orderId: number;
-  listingId?: number | null;
+  listingId: number;
   seller: string;
-  buyer?: string | null;
-  nftName?: string | null;
+  buyer: string | null;
+  nftName: string | null;
   nftAddress: string;
   tokenId: number;
   amount: number;
-  price: string | number;
+  // 價格（wei，整數字符串），展示時再轉為 BNB。
+  price: string;
   status: OrderStatus;
-  txHash?: string | null;
-  deleted?: 0 | 1;
-  createdAt?: string;
-  updatedAt?: string;
-}
-
-export interface ApiError {
-  code: 'ORDER_ERROR' | 'VALIDATION_ERROR' | 'INTERNAL_ERROR' | string;
-  message: string;
-}
-
-export interface UploadIpfsResponse {
-  cid: string;
-  url: string;
-}
-
-export interface CreateOrderPayload {
-  seller: string;
-  name?: string;
-  nftAddress: string;
-  tokenId: number;
-  amount: number;
-  price: string | number;
-}
-
-export interface ListOnChainByCidPayload {
-  seller: string;
-  cid: string;
-  price: string | number;
+  txHash: string | null;
+  deleted: 0 | 1;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface NftAsset {
@@ -59,241 +37,204 @@ export interface NftAsset {
   owner: string;
   cid: string;
   url: string;
+  tokenId: number;
+  nftAddress: string;
   amount: number;
-  createdAt?: string;
-  updatedAt?: string;
+  deleted: 0 | 1;
+  createdAt: string;
+  updatedAt: string;
 }
 
-export interface CreateAssetPayload {
+export interface HealthResponse {
+  status: string;
+}
+
+export interface ApiError {
+  message: string;
+  status?: number;
+  raw?: unknown;
+}
+
+export interface CreateAssetParams {
+  owner: string;
+  name: string;
+  file: File;
+}
+
+interface BackendOrder {
+  order_id: number;
+  listing_id: number;
+  seller: string;
+  buyer: string | null;
+  nft_name: string | null;
+  nft_address: string;
+  token_id: number;
+  amount: number;
+  price: string;
+  status: OrderStatus;
+  tx_hash: string | null;
+  deleted: 0 | 1;
+  created_at: string;
+  updated_at: string;
+}
+
+interface BackendNftAsset {
+  id: number;
   name: string;
   owner: string;
   cid: string;
   url: string;
+  token_id: number;
+  nft_address: string;
   amount: number;
+  deleted: 0 | 1;
+  created_at: string;
+  updated_at: string;
 }
 
-export interface MintErc721Response {
-  tokenId: string;
-}
-
-export interface MintErc1155Response {
-  txHash: string;
+function buildUrl(path: string): string {
+  const trimmedBase = (API_BASE_URL || '').replace(/\/$/, '');
+  if (!path.startsWith('/')) {
+    path = `/${path}`;
+  }
+  return `${trimmedBase}${path}`;
 }
 
 async function request<T>(
   path: string,
   options: RequestInit = {},
 ): Promise<T> {
-  const res = await fetch(`${API_BASE_URL}${path}`, {
+  const res = await fetch(buildUrl(path), {
     ...options,
-    headers: {
-      ...(options.headers || {}),
-    },
   });
 
   const text = await res.text();
-  const data = text ? JSON.parse(text) : undefined;
+  let data: unknown;
+  try {
+    data = text ? JSON.parse(text) : undefined;
+  } catch {
+    data = undefined;
+  }
 
   if (!res.ok) {
-    const err: ApiError =
-      data && typeof data === 'object' && 'code' in data
-        ? (data as ApiError)
-        : {
-            code: 'INTERNAL_ERROR',
-            message: 'Unexpected server error',
-          };
+    let message = 'Unexpected server error';
+    if (
+      data &&
+      typeof data === 'object' &&
+      'error' in data &&
+      typeof (data as any).error === 'string'
+    ) {
+      message = (data as any).error;
+    }
+
+    const err: ApiError = {
+      message,
+      status: res.status,
+      raw: data,
+    };
     throw err;
   }
 
   return data as T;
 }
 
-export async function uploadToIpfs(
-  file: File,
-): Promise<UploadIpfsResponse> {
-  const formData = new FormData();
-  formData.append('file', file);
+// 健康檢查
 
-  return request<UploadIpfsResponse>('/api/ipfs/upload', {
+export function getHealth(): Promise<HealthResponse> {
+  return request<HealthResponse>('/health', {
+    method: 'GET',
+  });
+}
+
+// NFT 素材（images / metadata）
+
+function mapAsset(asset: BackendNftAsset): NftAsset {
+  return {
+    id: asset.id,
+    name: asset.name,
+    owner: asset.owner,
+    cid: asset.cid,
+    url: asset.url,
+    tokenId: asset.token_id,
+    nftAddress: asset.nft_address,
+    amount: asset.amount,
+    deleted: asset.deleted,
+    createdAt: asset.created_at,
+    updatedAt: asset.updated_at,
+  };
+}
+
+export async function createAsset(
+  params: CreateAssetParams,
+): Promise<NftAsset> {
+  const formData = new FormData();
+  formData.append('owner', params.owner);
+  formData.append('name', params.name);
+  formData.append('file', params.file);
+
+  const data = await request<BackendNftAsset>('/api/v1/assets', {
     method: 'POST',
     body: formData,
   });
-}
 
-// 图片资产相关
-
-export async function createAsset(
-  payload: CreateAssetPayload,
-): Promise<NftAsset> {
-  return request<NftAsset>('/api/assets', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
-}
-
-export async function listAssets(params?: {
-  owner?: string;
-  keyword?: string;
-}): Promise<NftAsset[]> {
-  const search = new URLSearchParams();
-  if (params?.owner) search.set('owner', params.owner);
-  if (params?.keyword) search.set('keyword', params.keyword);
-  const qs = search.toString();
-  return request<NftAsset[]>(`/api/assets${qs ? `?${qs}` : ''}`, {
-    method: 'GET',
-  });
+  return mapAsset(data);
 }
 
 export async function getAsset(id: number): Promise<NftAsset> {
-  return request<NftAsset>(`/api/assets/${id}`, {
+  const data = await request<BackendNftAsset>(`/api/v1/assets/${id}`, {
     method: 'GET',
   });
+  return mapAsset(data);
 }
 
-export async function createOrder(
-  payload: CreateOrderPayload,
-): Promise<Order> {
-  return request<Order>('/api/orders', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
+export async function listAssets(owner: string): Promise<NftAsset[]> {
+  const encodedOwner = encodeURIComponent(owner);
+  const data = await request<BackendNftAsset[]>(
+    `/api/v1/assets?owner=${encodedOwner}`,
+    {
+      method: 'GET',
     },
-    body: JSON.stringify(payload),
-  });
+  );
+  return data.map(mapAsset);
 }
 
-export async function listOrderOnChain(
-  payload: CreateOrderPayload,
-): Promise<Order> {
-  return request<Order>('/api/orders/list-on-chain', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
+// 訂單查詢（從鏈上事件同步到 MySQL）
+
+function mapOrder(order: BackendOrder): Order {
+  return {
+    orderId: order.order_id,
+    listingId: order.listing_id,
+    seller: order.seller,
+    buyer: order.buyer,
+    nftName: order.nft_name,
+    nftAddress: order.nft_address,
+    tokenId: order.token_id,
+    amount: order.amount,
+    price: order.price,
+    status: order.status,
+    txHash: order.tx_hash,
+    deleted: order.deleted,
+    createdAt: order.created_at,
+    updatedAt: order.updated_at,
+  };
 }
 
-export async function listOrderOnChainByCid(
-  payload: ListOnChainByCidPayload,
-): Promise<Order> {
-  return request<Order>('/api/orders/list-on-chain/by-cid', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
-}
-
-export async function lockOrder(
-  orderId: number,
-  buyer: string,
-): Promise<Order> {
-  return request<Order>(`/api/orders/${orderId}/lock`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ buyer }),
-  });
-}
-
-export async function buyOrderOnChain(
-  orderId: number,
-  buyer: string,
-): Promise<Order> {
-  return request<Order>(`/api/orders/${orderId}/buy-on-chain`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ buyer }),
-  });
-}
-
-export async function settleOrder(
-  orderId: number,
-  txHash: string,
-): Promise<Order> {
-  return request<Order>(`/api/orders/${orderId}/settle`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ txHash }),
-  });
-}
-
-export async function markOrderSuccess(orderId: number): Promise<Order> {
-  return request<Order>(`/api/orders/${orderId}/success`, {
-    method: 'POST',
-  });
-}
-
-export async function markOrderFailed(orderId: number): Promise<Order> {
-  return request<Order>(`/api/orders/${orderId}/fail`, {
-    method: 'POST',
-  });
-}
-
-export async function cancelOrder(orderId: number): Promise<Order> {
-  return request<Order>(`/api/orders/${orderId}/cancel`, {
-    method: 'POST',
-  });
-}
-
-export async function getOrder(orderId: number): Promise<Order> {
-  return request<Order>(`/api/orders/${orderId}`, {
+export async function listOrders(): Promise<Order[]> {
+  const data = await request<BackendOrder[]>('/api/v1/orders', {
     method: 'GET',
   });
+  return data.map(mapOrder);
 }
 
-export async function listOrders(
-  status?: OrderStatus,
-): Promise<Order[]> {
-  const query = status ? `?status=${encodeURIComponent(status)}` : '';
-  return request<Order[]>(`/api/orders${query}`, {
-    method: 'GET',
-  });
-}
-
-export async function searchOrders(keyword: string): Promise<Order[]> {
-  const qs = `?keyword=${encodeURIComponent(keyword)}`;
-  return request<Order[]>(`/api/orders/search${qs}`, {
-    method: 'GET',
-  });
-}
-
-// 铸造接口：ERC721 / ERC1155
-
-export async function mintErc721(payload: {
-  to: string;
-  uri: string;
-}): Promise<MintErc721Response> {
-  return request<MintErc721Response>('/api/tokens/erc721/mint', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
+export async function getOrderByListingId(
+  listingId: number,
+): Promise<Order> {
+  const data = await request<BackendOrder>(
+    `/api/v1/orders/${listingId}`,
+    {
+      method: 'GET',
     },
-    body: JSON.stringify(payload),
-  });
+  );
+  return mapOrder(data);
 }
 
-export async function mintErc1155(payload: {
-  to: string;
-  id: string;
-  amount: string;
-  uri: string;
-}): Promise<MintErc1155Response> {
-  return request<MintErc1155Response>('/api/tokens/erc1155/mint', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
-}

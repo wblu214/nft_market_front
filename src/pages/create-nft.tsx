@@ -4,13 +4,15 @@ import { useState, FormEvent } from 'react';
 import { useAccount } from 'wagmi';
 
 import styles from '../styles/Home.module.css';
-import { useCreateAsset, useUploadImage } from '../lib/queries';
+import { useCreateAsset } from '../lib/queries';
+import { useMintErc1155, useMintErc721 } from '../lib/web3';
 import { AppHeader } from '../components/AppHeader';
 
 const CreateNftPage: NextPage = () => {
   const { address, isConnected } = useAccount();
-  const uploadMutation = useUploadImage();
   const createAssetMutation = useCreateAsset();
+  const mintErc721Mutation = useMintErc721();
+  const mintErc1155Mutation = useMintErc1155();
 
   const [name, setName] = useState('');
   const [amount, setAmount] = useState('1');
@@ -58,24 +60,39 @@ const CreateNftPage: NextPage = () => {
     }
 
     try {
-      // 1. 上传图片到 IPFS
-      const ipfs = await uploadMutation.mutateAsync(imageFile);
-      setUploadedUrl(ipfs.url);
-
-      // 2. 创建图片资产记录，用于「我的图片」页面（后端会负责 mint）
-      await createAssetMutation.mutateAsync({
-        name,
+      // 1. 調用 Gin 後端接口，上傳圖片並創建素材記錄（會同步到 IPFS）
+      const asset = await createAssetMutation.mutateAsync({
         owner: address,
-        cid: ipfs.cid,
-        url: ipfs.url,
-        amount: amountNum,
+        name,
+        file: imageFile,
       });
+      setUploadedUrl(asset.url);
+
+      // 2. 使用素材 URL 作為鏈上 NFT 的 metadata / image，通過錢包完成 mint
+      const uri = asset.url;
+
+      if (amountNum === 1) {
+        await mintErc721Mutation.mutate({
+          to: address,
+          uri,
+        });
+      } else {
+        // 對於 ERC1155，這裡簡單使用素材在資料庫中的 id 作為 token id
+        await mintErc1155Mutation.mutate({
+          to: address,
+          id: asset.id,
+          amount: amountNum,
+          uri,
+        });
+      }
 
       setFormSuccess(
-        `图片已上传并保存到「My NFT」，后台会根据数量自动完成 ERC721 / ERC1155 铸造。`,
+        amountNum === 1
+          ? '圖片已上傳並完成 ERC721 鑄造。'
+          : `圖片已上傳並完成 ERC1155 鑄造（數量 ${amountNum}）。`,
       );
     } catch (err: any) {
-      setFormError(err?.message || '上传失败，请稍后重试。');
+      setFormError(err?.message || '上傳或鑄造失敗，請稍後重試。');
     }
   };
 
@@ -159,12 +176,16 @@ const CreateNftPage: NextPage = () => {
                 type="submit"
                 className={styles.primaryButton}
                 disabled={
-                  uploadMutation.isPending || createAssetMutation.isPending
+                  createAssetMutation.isPending ||
+                  mintErc721Mutation.isPending ||
+                  mintErc1155Mutation.isPending
                 }
               >
-                {uploadMutation.isPending || createAssetMutation.isPending
+                {createAssetMutation.isPending ||
+                mintErc721Mutation.isPending ||
+                mintErc1155Mutation.isPending
                   ? '处理中…'
-                  : '上传图片'}
+                  : '上传并铸造'}
               </button>
 
               {uploadedUrl && (

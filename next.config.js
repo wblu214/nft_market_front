@@ -5,12 +5,18 @@ const nextConfig = {
     config.externals.push('pino-pretty', 'lokijs', 'encoding');
     return config;
   },
-  // 本地开发时通过 Next 反向代理到后端，避免浏览器 CORS 限制。
+  // 本地开发时通过 Next 反向代理到 Go Gin 后端，避免浏览器 CORS 限制。
   async rewrites() {
     return [
       {
-        source: '/api/:path*',
-        destination: 'http://localhost:2025/api/:path*',
+        // 业务接口：统一前缀 /api/v1 -> Gin 后端 /api/v1
+        source: '/api/v1/:path*',
+        destination: 'http://localhost:8080/api/v1/:path*',
+      },
+      {
+        // 健康检查：/health -> Gin 后端 /health
+        source: '/health',
+        destination: 'http://localhost:8080/health',
       },
     ];
   },

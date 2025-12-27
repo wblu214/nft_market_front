@@ -2,16 +2,18 @@ import type { NextPage } from 'next';
 import Head from 'next/head';
 import { useMemo } from 'react';
 import { useAccount } from 'wagmi';
+import { formatEther } from 'viem';
 
 import styles from '../styles/Home.module.css';
 import type { Order, OrderStatus } from '../lib/api';
-import { useCancelOrder, useOrders } from '../lib/queries';
+import { useOrders } from '../lib/queries';
+import { useCancelListing } from '../lib/web3';
 import { AppHeader } from '../components/AppHeader';
 
 const MyOrdersPage: NextPage = () => {
   const { address, isConnected } = useAccount();
   const { data: orders, isLoading, error } = useOrders();
-  const cancelMutation = useCancelOrder();
+  const cancelMutation = useCancelListing();
 
   const myOrders = useMemo(() => {
     if (!orders || !address) return [];
@@ -22,12 +24,13 @@ const MyOrdersPage: NextPage = () => {
     );
   }, [orders, address]);
 
-  const formatPrice = (price: string | number) => {
-    const n = typeof price === 'string' ? Number(price) : price;
-    if (Number.isNaN(n)) return String(price);
-    return `${n.toLocaleString(undefined, {
-      maximumFractionDigits: 6,
-    })} BNB`;
+  const formatPrice = (priceWei: string) => {
+    try {
+      const bnb = formatEther(BigInt(priceWei));
+      return `${bnb} BNB`;
+    } catch {
+      return `${priceWei} wei`;
+    }
   };
 
   const renderStatusTag = (status: OrderStatus) => {
@@ -49,8 +52,8 @@ const MyOrdersPage: NextPage = () => {
     }
   };
 
-  const handleCancel = (orderId: number) => {
-    cancelMutation.mutate(orderId);
+  const handleCancel = (order: Order) => {
+    cancelMutation.mutate(order);
   };
 
   return (
@@ -128,7 +131,7 @@ const MyOrdersPage: NextPage = () => {
                           type="button"
                           className={styles.secondaryButton}
                           disabled={cancelMutation.isPending}
-                          onClick={() => handleCancel(order.orderId)}
+                          onClick={() => handleCancel(order)}
                         >
                           {cancelMutation.isPending ? '取消中…' : '取消挂单'}
                         </button>

@@ -2,10 +2,12 @@ import { useMemo } from 'react';
 import type { NextPage } from 'next';
 import Head from 'next/head';
 import { useAccount } from 'wagmi';
+import { formatEther } from 'viem';
 
 import styles from '../styles/Home.module.css';
 import type { Order, OrderStatus } from '../lib/api';
-import { useLockAndBuy, useOrders } from '../lib/queries';
+import { useOrders } from '../lib/queries';
+import { useBuyListing } from '../lib/web3';
 import { AppHeader } from '../components/AppHeader';
 
 const DEFAULT_STATUS: OrderStatus = 'LISTED';
@@ -13,24 +15,22 @@ const DEFAULT_STATUS: OrderStatus = 'LISTED';
 const Home: NextPage = () => {
   const { address, isConnected } = useAccount();
   const { data: orders, isLoading, error } = useOrders(DEFAULT_STATUS);
-  const buyMutation = useLockAndBuy();
+  const buyMutation = useBuyListing();
 
   const listedOrders = useMemo(() => orders ?? [], [orders]);
 
   const handleBuy = (order: Order) => {
     if (!address) return;
-    buyMutation.mutate({
-      orderId: order.orderId,
-      buyer: address,
-    });
+    buyMutation.mutate({ order });
   };
 
-  const formatPrice = (price: string | number) => {
-    const n = typeof price === 'string' ? Number(price) : price;
-    if (Number.isNaN(n)) return String(price);
-    return `${n.toLocaleString(undefined, {
-      maximumFractionDigits: 6,
-    })} BNB`;
+  const formatPrice = (priceWei: string) => {
+    try {
+      const bnb = formatEther(BigInt(priceWei));
+      return `${bnb} BNB`;
+    } catch {
+      return `${priceWei} wei`;
+    }
   };
 
   const renderStatusTag = (status: OrderStatus) => {
@@ -82,12 +82,9 @@ const Home: NextPage = () => {
 
           {error && (
             <div className={styles.errorBox}>
-              加载失败，请确认后端
-              <code className={styles.inlineCode}>
-                {' '}
-                http://localhost:2025{' '}
-              </code>
-              是否已启动。
+              加载失败，请确认後端 Gin 服務已啟動並且
+              <code className={styles.inlineCode}> /health </code>
+              返回正常。
             </div>
           )}
 
