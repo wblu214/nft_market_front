@@ -61,6 +61,12 @@ export interface CreateAssetParams {
   file: File;
 }
 
+export interface UpdateAssetMintInfoParams {
+  tokenId: number;
+  nftAddress: string;
+  amount: number;
+}
+
 interface BackendOrder {
   order_id: number;
   listing_id: number;
@@ -198,6 +204,52 @@ export async function listAssets(owner: string): Promise<NftAsset[]> {
   return data.map(mapAsset);
 }
 
+// 鏈上 mint 成功後回傳 tokenId / nftAddress / amount
+
+export async function updateAssetMintInfo(
+  id: number,
+  params: UpdateAssetMintInfoParams,
+): Promise<NftAsset> {
+  const payload = {
+    token_id: params.tokenId,
+    nft_address: params.nftAddress,
+    amount: params.amount,
+  };
+
+  const data = await request<BackendNftAsset>(
+    `/api/v1/assets/${id}/mint-info`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    },
+  );
+
+  return mapAsset(data);
+}
+
+// 根據鏈上 nft_address + token_id 查詢對應的素材記錄
+
+export async function getAssetByNft(params: {
+  nftAddress: string;
+  tokenId: number;
+}): Promise<NftAsset> {
+  const search = new URLSearchParams();
+  search.set('nft_address', params.nftAddress);
+  search.set('token_id', String(params.tokenId));
+
+  const data = await request<BackendNftAsset>(
+    `/api/v1/assets/by-nft?${search.toString()}`,
+    {
+      method: 'GET',
+    },
+  );
+
+  return mapAsset(data);
+}
+
 // 訂單查詢（從鏈上事件同步到 MySQL）
 
 function mapOrder(order: BackendOrder): Order {
@@ -237,4 +289,3 @@ export async function getOrderByListingId(
   );
   return mapOrder(data);
 }
-

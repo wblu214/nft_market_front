@@ -1,6 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useWriteContract } from 'wagmi';
 import { parseEther } from 'viem';
+import { readContract } from '@wagmi/core';
 
 import {
   NFT_MARKETPLACE_ADDRESS,
@@ -12,6 +13,7 @@ import {
 } from './contracts';
 import { ordersKeys } from './queries';
 import type { Order } from './api';
+import { config } from '../wagmi';
 
 // 基於 wagmi 的簡單封裝，把常用鏈上操作包裝成 mutation 風格的 hook，
 // 方便在頁面中與現有的 React Query 用法對齊。
@@ -77,6 +79,8 @@ export interface ListOnMarketplaceParams {
   amount: string | number | bigint;
   // 價格（BNB，字符串），將會轉成 wei
   priceInBnb: string;
+  // NFT 當前持有者（調用 list 的錢包地址）
+  owner: string;
 }
 
 export function useListOnMarketplace() {
@@ -88,7 +92,37 @@ export function useListOnMarketplace() {
     tokenId,
     amount,
     priceInBnb,
+    owner,
   }: ListOnMarketplaceParams) => {
+    // 先確保對應 NFT 合約已對 Marketplace 做 setApprovalForAll 授權
+    const lowerNft = nftAddress.toLowerCase();
+    const isErc1155 =
+      lowerNft === PROJECT_1155_ADDRESS.toLowerCase();
+    const nftAbi = isErc1155 ? project1155Abi : projectNftAbi;
+
+    const approved = (await readContract(config, {
+      abi: nftAbi as any,
+      address: nftAddress as `0x${string}`,
+      functionName: 'isApprovedForAll',
+      args: [
+        owner as `0x${string}`,
+        NFT_MARKETPLACE_ADDRESS as `0x${string}`,
+      ] as const,
+    })) as boolean;
+
+    if (!approved) {
+      // 調用 setApprovalForAll(NFTMarketplace, true)
+      await writeContractAsync({
+        abi: nftAbi,
+        address: nftAddress as `0x${string}`,
+        functionName: 'setApprovalForAll',
+        args: [
+          NFT_MARKETPLACE_ADDRESS as `0x${string}`,
+          true,
+        ],
+      });
+    }
+
     const listingTokenId =
       typeof tokenId === 'bigint' ? tokenId : BigInt(tokenId);
     const listingAmount =
@@ -121,6 +155,8 @@ export function useMintErc721() {
   const { writeContractAsync, isPending, error } = useWriteContract();
 
   const mutate = async ({ to, uri }: MintErc721Params) => {
+    // writeContractAsync 返回交易 hash，本 hook 不關心返回值，
+    // 具體的 tokenId 由調用方根據合約邏輯自行推導或通過其他接口獲取。
     return writeContractAsync({
       abi: projectNftAbi,
       address: PROJECT_NFT_ADDRESS as `0x${string}`,

@@ -85,6 +85,7 @@ const NftListingPage: NextPage = () => {
         tokenId,
         amount: 1,
         priceInBnb: priceInput,
+        owner: address,
       });
 
       setFormSuccess('挂单交易已提交，请等待链上确认和后端同步订单。');

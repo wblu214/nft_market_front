@@ -6,6 +6,14 @@ import { useAccount } from 'wagmi';
 import styles from '../styles/Home.module.css';
 import { useCreateAsset } from '../lib/queries';
 import { useMintErc1155, useMintErc721 } from '../lib/web3';
+import { updateAssetMintInfo } from '../lib/api';
+import {
+  PROJECT_1155_ADDRESS,
+  PROJECT_NFT_ADDRESS,
+  projectNftAbi,
+} from '../lib/contracts';
+import { readContract } from '@wagmi/core';
+import { config } from '../wagmi';
 import { AppHeader } from '../components/AppHeader';
 
 const CreateNftPage: NextPage = () => {
@@ -72,9 +80,26 @@ const CreateNftPage: NextPage = () => {
       const uri = asset.url;
 
       if (amountNum === 1) {
+        // 對於 ERC721，先讀取 nextTokenId，實際鑄造的 tokenId = nextTokenId + 1（按後端約定）
+        const nextTokenId = (await readContract(config, {
+          abi: projectNftAbi as any,
+          address: PROJECT_NFT_ADDRESS as `0x${string}`,
+          functionName: 'nextTokenId',
+          args: [] as const,
+        })) as bigint;
+
+        const mintedTokenId = Number(nextTokenId) + 1;
+
         await mintErc721Mutation.mutate({
           to: address,
           uri,
+        });
+
+        // 3. mint 成功後，把 tokenId / nftAddress / amount 回傳給後端
+        await updateAssetMintInfo(asset.id, {
+          tokenId: mintedTokenId,
+          nftAddress: PROJECT_NFT_ADDRESS,
+          amount: 1,
         });
       } else {
         // 對於 ERC1155，這裡簡單使用素材在資料庫中的 id 作為 token id
@@ -84,12 +109,18 @@ const CreateNftPage: NextPage = () => {
           amount: amountNum,
           uri,
         });
+
+        await updateAssetMintInfo(asset.id, {
+          tokenId: asset.id,
+          nftAddress: PROJECT_1155_ADDRESS,
+          amount: amountNum,
+        });
       }
 
       setFormSuccess(
         amountNum === 1
-          ? '圖片已上傳並完成 ERC721 鑄造。'
-          : `圖片已上傳並完成 ERC1155 鑄造（數量 ${amountNum}）。`,
+          ? '圖片已上傳並完成 ERC721 鑄造，並已同步到後端。'
+          : `圖片已上傳並完成 ERC1155 鑄造（數量 ${amountNum}），並已同步到後端。`,
       );
     } catch (err: any) {
       setFormError(err?.message || '上傳或鑄造失敗，請稍後重試。');
