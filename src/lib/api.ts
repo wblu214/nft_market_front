@@ -76,6 +76,7 @@ export interface CreateOrderParams {
   // 價格（wei，十進制字符串）
   price: string;
   txHash: string;
+  nftName?: string;
 }
 
 export interface UpdateOrderStatusParams {
@@ -320,6 +321,10 @@ export async function createOrder(
     price: params.price,
     tx_hash: params.txHash,
   };
+
+  if (params.nftName) {
+    (payload as any).nft_name = params.nftName;
+  }
 
   const data = await request<BackendOrder>('/api/v1/orders', {
     method: 'POST',

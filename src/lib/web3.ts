@@ -99,6 +99,8 @@ export interface ListOnMarketplaceParams {
   priceInBnb: string;
   // NFT 當前持有者（調用 list 的錢包地址）
   owner: string;
+  // 可選：NFT 顯示名稱，用於回傳給後端作為 nft_name
+  nftName?: string;
 }
 
 export function useListOnMarketplace() {
@@ -111,6 +113,7 @@ export function useListOnMarketplace() {
     amount,
     priceInBnb,
     owner,
+    nftName,
   }: ListOnMarketplaceParams) => {
     // 先確保對應 NFT 合約已對 Marketplace 做 setApprovalForAll 授權
     const lowerNft = nftAddress.toLowerCase();
@@ -173,6 +176,7 @@ export function useListOnMarketplace() {
       amount: Number(listingAmount),
       price: priceWei.toString(),
       txHash,
+      nftName,
     });
 
     queryClient.invalidateQueries({ queryKey: ordersKeys.all });

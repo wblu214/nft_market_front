@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   createAsset,
   getAsset,
+  getAssetByNft,
   listAssets,
   listOrders,
   NftAsset,
@@ -58,6 +59,37 @@ export function useCreateAsset() {
     mutationFn: createAsset,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: assetsKeys.all });
+    },
+  });
+}
+
+// 根據當前市場訂單批量獲取對應的素材信息，用於首頁展示 NFT 圖片。
+export function useMarketAssets(orders?: Order[]) {
+  return useQuery({
+    queryKey: [
+      'marketAssets',
+      orders?.map((o) => [o.nftAddress, o.tokenId]) ?? [],
+    ],
+    enabled: !!orders && orders.length > 0,
+    queryFn: async (): Promise<Record<number, NftAsset>> => {
+      if (!orders || orders.length === 0) return {};
+      const results = await Promise.all(
+        orders.map((o) =>
+          getAssetByNft({
+            nftAddress: o.nftAddress,
+            tokenId: o.tokenId,
+          }).catch(() => null),
+        ),
+      );
+
+      const map: Record<number, NftAsset> = {};
+      orders.forEach((o, idx) => {
+        const asset = results[idx];
+        if (asset) {
+          map[o.listingId] = asset;
+        }
+      });
+      return map;
     },
   });
 }

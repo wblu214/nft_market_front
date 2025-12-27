@@ -6,7 +6,7 @@ import { formatEther } from 'viem';
 
 import styles from '../styles/Home.module.css';
 import type { Order, OrderStatus } from '../lib/api';
-import { useOrders } from '../lib/queries';
+import { useMarketAssets, useOrders } from '../lib/queries';
 import { useBuyListing } from '../lib/web3';
 import { AppHeader } from '../components/AppHeader';
 
@@ -18,6 +18,7 @@ const Home: NextPage = () => {
   const buyMutation = useBuyListing();
 
   const listedOrders = useMemo(() => orders ?? [], [orders]);
+  const { data: marketAssets } = useMarketAssets(listedOrders);
 
   const handleBuy = (order: Order) => {
     if (!address) return;
@@ -95,13 +96,21 @@ const Home: NextPage = () => {
           )}
 
           <div className={styles.cardRow}>
-            {listedOrders.map((order) => (
+            {listedOrders.map((order) => {
+              const asset = marketAssets?.[order.listingId];
+
+              return (
               <article key={order.orderId} className={styles.marketCard}>
-                <div className={styles.marketCardImage} />
+                <div className={styles.marketCardImage}>
+                  {asset && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={asset.url} alt={asset.name} />
+                  )}
+                </div>
                 <div className={styles.marketCardBody}>
                   <div className={styles.marketCardHeader}>
                     <h3 className={styles.marketCardTitle}>
-                      Token {order.tokenId}
+                      {asset?.name ?? `Token ${order.tokenId}`}
                     </h3>
                     {renderStatusTag(order.status)}
                   </div>
@@ -143,7 +152,7 @@ const Home: NextPage = () => {
                   </button>
                 </div>
               </article>
-            ))}
+            )})}
           </div>
         </section>
       </main>

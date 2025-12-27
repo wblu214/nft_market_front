@@ -103,6 +103,7 @@ const NftListingPage: NextPage = () => {
         amount: 1,
         priceInBnb: priceInput,
         owner: address,
+        nftName: activeAsset.name,
       });
 
       setFormSuccess('挂单交易已提交，请等待链上确认和后端同步订单。');
