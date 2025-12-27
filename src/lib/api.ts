@@ -67,6 +67,22 @@ export interface UpdateAssetMintInfoParams {
   amount: number;
 }
 
+export interface CreateOrderParams {
+  listingId: number;
+  seller: string;
+  nftAddress: string;
+  tokenId: number;
+  amount: number;
+  // 價格（wei，十進制字符串）
+  price: string;
+  txHash: string;
+}
+
+export interface UpdateOrderStatusParams {
+  status: OrderStatus;
+  buyer?: string;
+}
+
 interface BackendOrder {
   order_id: number;
   listing_id: number;
@@ -287,5 +303,59 @@ export async function getOrderByListingId(
       method: 'GET',
     },
   );
+  return mapOrder(data);
+}
+
+// 上架成功後回傳訂單信息
+
+export async function createOrder(
+  params: CreateOrderParams,
+): Promise<Order> {
+  const payload = {
+    listing_id: params.listingId,
+    seller: params.seller,
+    nft_address: params.nftAddress,
+    token_id: params.tokenId,
+    amount: params.amount,
+    price: params.price,
+    tx_hash: params.txHash,
+  };
+
+  const data = await request<BackendOrder>('/api/v1/orders', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  return mapOrder(data);
+}
+
+// 下架 / 成交 成功後回傳訂單狀態
+
+export async function updateOrderStatus(
+  listingId: number,
+  params: UpdateOrderStatusParams,
+): Promise<Order> {
+  const payload: Record<string, unknown> = {
+    status: params.status,
+  };
+
+  if (params.buyer) {
+    payload.buyer = params.buyer;
+  }
+
+  const data = await request<BackendOrder>(
+    `/api/v1/orders/${listingId}/status`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    },
+  );
+
   return mapOrder(data);
 }

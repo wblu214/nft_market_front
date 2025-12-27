@@ -13,6 +13,7 @@ import {
 } from './contracts';
 import { ordersKeys } from './queries';
 import type { Order } from './api';
+import { createOrder, updateOrderStatus } from './api';
 import { config } from '../wagmi';
 
 // 基於 wagmi 的簡單封裝，把常用鏈上操作包裝成 mutation 風格的 hook，
@@ -26,7 +27,13 @@ export function useBuyListing() {
   const queryClient = useQueryClient();
   const { writeContractAsync, isPending, error } = useWriteContract();
 
-  const mutate = async ({ order }: { order: Order }) => {
+  const mutate = async ({
+    order,
+    buyer,
+  }: {
+    order: Order;
+    buyer: string;
+  }) => {
     if (!order.listingId) {
       throw new Error('缺少 listingId，無法調用 NFTMarketplace.buy');
     }
@@ -34,12 +41,18 @@ export function useBuyListing() {
     const listingId = BigInt(order.listingId);
     const value = BigInt(order.price);
 
-    await writeContractAsync({
+    const txHash = await writeContractAsync({
       abi: nftMarketplaceAbi,
       address: NFT_MARKETPLACE_ADDRESS as `0x${string}`,
       functionName: 'buy',
       args: [listingId],
       value,
+    });
+
+    // 成交成功後，把狀態回傳給後端
+    await updateOrderStatus(order.listingId, {
+      status: 'SUCCESS',
+      buyer,
     });
 
     // 交給後端事件同步，這裡只主動刷新一次列表
@@ -60,11 +73,16 @@ export function useCancelListing() {
 
     const listingId = BigInt(order.listingId);
 
-    await writeContractAsync({
+    const txHash = await writeContractAsync({
       abi: nftMarketplaceAbi,
       address: NFT_MARKETPLACE_ADDRESS as `0x${string}`,
       functionName: 'cancel',
       args: [listingId],
+    });
+
+    // 下架成功後，把狀態回傳給後端
+    await updateOrderStatus(order.listingId, {
+      status: 'CANCELED',
     });
 
     queryClient.invalidateQueries({ queryKey: ordersKeys.all });
@@ -123,17 +141,38 @@ export function useListOnMarketplace() {
       });
     }
 
+    // 2) 讀取下一個 listingId，作為本次掛單的 listingId（對應合約 nextListingId）
+    const nextListingId = (await readContract(config, {
+      abi: nftMarketplaceAbi as any,
+      address: NFT_MARKETPLACE_ADDRESS as `0x${string}`,
+      functionName: 'nextListingId',
+      args: [] as const,
+    })) as bigint;
+    const listingId = Number(nextListingId);
+
     const listingTokenId =
       typeof tokenId === 'bigint' ? tokenId : BigInt(tokenId);
     const listingAmount =
       typeof amount === 'bigint' ? amount : BigInt(amount);
     const priceWei = parseEther(priceInBnb);
 
-    await writeContractAsync({
+    // 3) 調用 NFTMarketplace.list
+    const txHash = await writeContractAsync({
       abi: nftMarketplaceAbi,
       address: NFT_MARKETPLACE_ADDRESS as `0x${string}`,
       functionName: 'list',
       args: [nftAddress as `0x${string}`, listingTokenId, listingAmount, priceWei],
+    });
+
+    // 4) 上架成功後，把訂單信息回傳給 Go 後端
+    await createOrder({
+      listingId,
+      seller: owner,
+      nftAddress,
+      tokenId: Number(listingTokenId),
+      amount: Number(listingAmount),
+      price: priceWei.toString(),
+      txHash,
     });
 
     queryClient.invalidateQueries({ queryKey: ordersKeys.all });

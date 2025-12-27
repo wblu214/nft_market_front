@@ -4,15 +4,17 @@ import { useMemo, useState, FormEvent } from 'react';
 import { useAccount } from 'wagmi';
 
 import styles from '../styles/Home.module.css';
-import type { NftAsset } from '../lib/api';
-import { useAssets } from '../lib/queries';
-import { useListOnMarketplace } from '../lib/web3';
+import type { NftAsset, Order } from '../lib/api';
+import { useAssets, useOrders } from '../lib/queries';
+import { useCancelListing, useListOnMarketplace } from '../lib/web3';
 import { AppHeader } from '../components/AppHeader';
 
 const NftListingPage: NextPage = () => {
   const { address, isConnected } = useAccount();
   const { data: assets, isLoading, error } = useAssets(address);
+  const { data: orders } = useOrders('LISTED');
   const listMutation = useListOnMarketplace();
+  const cancelMutation = useCancelListing();
 
   const myAssets = useMemo(() => assets ?? [], [assets]);
 
@@ -39,6 +41,21 @@ const NftListingPage: NextPage = () => {
     setTokenIdInput(initialTokenId);
     setFormError(null);
     setFormSuccess(null);
+  };
+
+  const findActiveOrderForAsset = (
+    asset: NftAsset,
+    currentAddress?: string,
+  ): Order | undefined => {
+    if (!orders || !currentAddress) return undefined;
+    const lowerOwner = currentAddress.toLowerCase();
+    return orders.find(
+      (o) =>
+        o.status === 'LISTED' &&
+        o.seller.toLowerCase() === lowerOwner &&
+        o.nftAddress.toLowerCase() === asset.nftAddress.toLowerCase() &&
+        o.tokenId === asset.tokenId,
+    );
   };
 
   const handleSubmit = async (e: FormEvent) => {
@@ -138,7 +155,10 @@ const NftListingPage: NextPage = () => {
             )}
 
           <div className={styles.cardRow}>
-            {myAssets.map((asset) => (
+            {myAssets.map((asset) => {
+              const activeOrder = findActiveOrderForAsset(asset, address);
+
+              return (
               <article key={asset.id} className={styles.marketCard}>
                 <div className={styles.marketCardImage}>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -165,9 +185,14 @@ const NftListingPage: NextPage = () => {
                   <button
                     type="button"
                     className={styles.secondaryButton}
-                    disabled
+                    disabled={
+                      !isConnected || !activeOrder || cancelMutation.isPending
+                    }
+                    onClick={() =>
+                      activeOrder && cancelMutation.mutate(activeOrder)
+                    }
                   >
-                    下架
+                    {cancelMutation.isPending ? '下架中…' : '下架'}
                   </button>
                   <button
                     type="button"
@@ -179,7 +204,7 @@ const NftListingPage: NextPage = () => {
                   </button>
                 </div>
               </article>
-            ))}
+            )})}
           </div>
         </section>
 

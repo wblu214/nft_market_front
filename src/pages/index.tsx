@@ -21,7 +21,7 @@ const Home: NextPage = () => {
 
   const handleBuy = (order: Order) => {
     if (!address) return;
-    buyMutation.mutate({ order });
+    buyMutation.mutate({ order, buyer: address });
   };
 
   const formatPrice = (priceWei: string) => {
